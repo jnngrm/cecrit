@@ -7,89 +7,63 @@ import (
     "fmt"
     "os"
     "flag"
+    "crypto/rand"
 )
 
-const keyBase64 string = "ffCJ7/JAdIzbsyY+zqIJmyECx5P5LzLKyFepKhzngb0="
 var encAction, decAction *bool
-var in, out *string
+var in, out, keyBase64 *string
 
-func check(e error) {
-    if e != nil {
-        panic(e)
-    }
+func randKey() string {
+  keyBytes := make([]byte,32)
+  rand.Read(keyBytes)
+  return base64.StdEncoding.EncodeToString(keyBytes);
 }
 
 func setKey() {
-  key, err := base64.StdEncoding.DecodeString(keyBase64);
-  check(err)
-  err = cryptkeeper.SetCryptKey([]byte(key))
-  check(err)
+  key, _ := base64.StdEncoding.DecodeString(*keyBase64);
+  cryptkeeper.SetCryptKey([]byte(key))
 }
 
 func setup() {
-  setKey()
   encAction = flag.Bool("enc", false, "Encrypt files")
   decAction = flag.Bool("dec", false, "Decrypt files")
-  in = flag.String("in", "./in", "Input directory")
+  in = flag.String("in", ".", "Input directory")
   out = flag.String("out", "./out", "Output directory")
+  keyBase64 = flag.String("key", randKey(), "32 byte / 256 bit key")
   flag.Parse()
+  setKey()
 }
 
-func encryptFile(name string) {
-  path := fmt.Sprintf("%s/%s", *in, name)
-  dat, err := ioutil.ReadFile(path)
-  check(err)
-  enc, err := cryptkeeper.Encrypt(string(dat))
-  check(err)
-  encName, err := cryptkeeper.Encrypt(name)
-  check(err)
-  path = fmt.Sprintf("%s/%s", *out, encName)
-  err = ioutil.WriteFile(path, []byte(enc), 0600)
-  check(err)
+func cryptFile(inPath string, name string, outPath string, crypter func(string) (string, error)) {
+  filePath := fmt.Sprintf("%s/%s", inPath, name)
+  dat, _ := ioutil.ReadFile(filePath)
+  content, _ := crypter(string(dat))
+  fileName, _ := crypter(name)
+  ioutil.WriteFile(fmt.Sprintf("%s/%s", outPath, fileName), []byte(content), 0600)
 }
 
-func decryptFile(encName string) {
-  name, err := cryptkeeper.Decrypt(encName)
-  check(err)
-  encPath := fmt.Sprintf("%s/%s", *in, encName)
-  dat, err := ioutil.ReadFile(encPath)
-  check(err)
-  dec, err := cryptkeeper.Decrypt(string(dat))
-  check(err)
-  decPath := fmt.Sprintf("%s/%s", *out, name)
-  err = ioutil.WriteFile(decPath, []byte(dec), 0600)
-  check(err)
-}
-
-func encrypt() {
-  _ = os.Mkdir(*out, 0700)
-  files, err := ioutil.ReadDir(*in)
-  check(err)
+func crypt(inDir string, outDir string, crypter func(string) (string, error)) {
+  files, _ := ioutil.ReadDir(inDir)
   for _, file := range files {
-    stat, err := os.Stat(file.Name())
-    check(err)
-    if stat.Mode().IsRegular() {
-      encryptFile(file.Name())
-    }
-  }
-}
-
-func decrypt() {
-  _ = os.Mkdir(*out, 0700)
-  files, err := ioutil.ReadDir(*in)
-  check(err)
-  for _, file := range files {
-    path := fmt.Sprintf("%s/%s", *in, file.Name())
-    stat, err := os.Stat(path)
-    check(err)
-    if stat.Mode().IsRegular() {
-      decryptFile(file.Name())
+    if file.Mode().IsRegular() {
+      cryptFile(inDir, file.Name(), outDir, crypter)
+    } else if (file.Mode().IsDir()) {
+      name, _ := crypter(file.Name())
+      os.Mkdir(fmt.Sprintf("%s/%s", outDir, name), 0700)
+      crypt(fmt.Sprintf("%s/%s", inDir, file.Name()), fmt.Sprintf("%s/%s", outDir, name), crypter)
     }
   }
 }
 
 func main() {
     setup()
-    if *encAction == true { encrypt() }
-    if *decAction == true { decrypt() }
+    if *encAction == true {
+      _ = os.Mkdir(*out, 0700)
+      crypt(*in, *out, cryptkeeper.Encrypt)
+      fmt.Printf("Key is: %s\n", *keyBase64)
+    }
+    if *decAction == true {
+      _ = os.Mkdir(*out, 0700)
+      crypt(*in, *out, cryptkeeper.Decrypt)
+    }
   }
