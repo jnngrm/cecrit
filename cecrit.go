@@ -26,8 +26,6 @@ func setKey() {
 }
 
 func setup() {
-  _ = os.Mkdir("./enc", 0700)
-  _ = os.Mkdir("./dec", 0700)
   setKey()
   encAction = flag.Bool("enc", false, "Encrypt files")
   decAction = flag.Bool("dec", false, "Decrypt files")
@@ -60,6 +58,7 @@ func decryptFile(encName string) {
 }
 
 func encrypt() {
+  _ = os.Mkdir("./enc", 0700)
   files, err := ioutil.ReadDir(".")
   check(err)
   for _, file := range files {
@@ -72,6 +71,7 @@ func encrypt() {
 }
 
 func decrypt() {
+  _ = os.Mkdir("./dec", 0700)
   files, err := ioutil.ReadDir("./enc")
   check(err)
   for _, file := range files {
