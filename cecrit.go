@@ -11,6 +11,7 @@ import (
 
 const keyBase64 string = "ffCJ7/JAdIzbsyY+zqIJmyECx5P5LzLKyFepKhzngb0="
 var encAction, decAction *bool
+var in, out *string
 
 func check(e error) {
     if e != nil {
@@ -29,17 +30,20 @@ func setup() {
   setKey()
   encAction = flag.Bool("enc", false, "Encrypt files")
   decAction = flag.Bool("dec", false, "Decrypt files")
+  in = flag.String("in", "./in", "Input directory")
+  out = flag.String("out", "./out", "Output directory")
   flag.Parse()
 }
 
 func encryptFile(name string) {
-  dat, err := ioutil.ReadFile(name)
+  path := fmt.Sprintf("%s/%s", *in, name)
+  dat, err := ioutil.ReadFile(path)
   check(err)
   enc, err := cryptkeeper.Encrypt(string(dat))
   check(err)
   encName, err := cryptkeeper.Encrypt(name)
   check(err)
-  path := fmt.Sprintf("./enc/%s", encName)
+  path = fmt.Sprintf("%s/%s", *out, encName)
   err = ioutil.WriteFile(path, []byte(enc), 0600)
   check(err)
 }
@@ -47,19 +51,19 @@ func encryptFile(name string) {
 func decryptFile(encName string) {
   name, err := cryptkeeper.Decrypt(encName)
   check(err)
-  encPath := fmt.Sprintf("./enc/%s", encName)
+  encPath := fmt.Sprintf("%s/%s", *in, encName)
   dat, err := ioutil.ReadFile(encPath)
   check(err)
   dec, err := cryptkeeper.Decrypt(string(dat))
   check(err)
-  decPath := fmt.Sprintf("./dec/%s", name)
+  decPath := fmt.Sprintf("%s/%s", *out, name)
   err = ioutil.WriteFile(decPath, []byte(dec), 0600)
   check(err)
 }
 
 func encrypt() {
-  _ = os.Mkdir("./enc", 0700)
-  files, err := ioutil.ReadDir(".")
+  _ = os.Mkdir(*out, 0700)
+  files, err := ioutil.ReadDir(*in)
   check(err)
   for _, file := range files {
     stat, err := os.Stat(file.Name())
@@ -71,11 +75,11 @@ func encrypt() {
 }
 
 func decrypt() {
-  _ = os.Mkdir("./dec", 0700)
-  files, err := ioutil.ReadDir("./enc")
+  _ = os.Mkdir(*out, 0700)
+  files, err := ioutil.ReadDir(*in)
   check(err)
   for _, file := range files {
-    path := fmt.Sprintf("./enc/%s", file.Name())
+    path := fmt.Sprintf("%s/%s", *in, file.Name())
     stat, err := os.Stat(path)
     check(err)
     if stat.Mode().IsRegular() {
